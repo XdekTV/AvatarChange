@@ -1,0 +1,10 @@
+C:\Users\Stasiu\source\repos\AvatarChange\AvatarChange\bin\Debug\AvatarChange.exe.config
+C:\Users\Stasiu\source\repos\AvatarChange\AvatarChange\bin\Debug\AvatarChange.exe
+C:\Users\Stasiu\source\repos\AvatarChange\AvatarChange\bin\Debug\AvatarChange.pdb
+C:\Users\Stasiu\source\repos\AvatarChange\AvatarChange\obj\Debug\AvatarChange.csproj.AssemblyReference.cache
+C:\Users\Stasiu\source\repos\AvatarChange\AvatarChange\obj\Debug\AvatarChange.Form1.resources
+C:\Users\Stasiu\source\repos\AvatarChange\AvatarChange\obj\Debug\AvatarChange.Properties.Resources.resources
+C:\Users\Stasiu\source\repos\AvatarChange\AvatarChange\obj\Debug\AvatarChange.csproj.GenerateResource.cache
+C:\Users\Stasiu\source\repos\AvatarChange\AvatarChange\obj\Debug\AvatarChange.csproj.CoreCompileInputs.cache
+C:\Users\Stasiu\source\repos\AvatarChange\AvatarChange\obj\Debug\AvatarChange.exe
+C:\Users\Stasiu\source\repos\AvatarChange\AvatarChange\obj\Debug\AvatarChange.pdb
