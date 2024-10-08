@@ -8,3 +8,6 @@ C:\Users\Stasiu\source\repos\AvatarChange\AvatarChange\obj\Debug\AvatarChange.cs
 C:\Users\Stasiu\source\repos\AvatarChange\AvatarChange\obj\Debug\AvatarChange.csproj.CoreCompileInputs.cache
 C:\Users\Stasiu\source\repos\AvatarChange\AvatarChange\obj\Debug\AvatarChange.exe
 C:\Users\Stasiu\source\repos\AvatarChange\AvatarChange\obj\Debug\AvatarChange.pdb
+C:\Users\Stasiu\source\repos\AvatarChange\AvatarChange\bin\Debug\System.Security.Principal.Windows.dll
+C:\Users\Stasiu\source\repos\AvatarChange\AvatarChange\bin\Debug\System.Security.Principal.Windows.xml
+C:\Users\Stasiu\source\repos\AvatarChange\AvatarChange\obj\Debug\AvatarCh.3CBD9326.Up2Date
