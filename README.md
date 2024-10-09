@@ -2,7 +2,7 @@
 An avatar changer in the style of Windows Vista - Windows 7 because ms broke it in win8+ :sad:
 
 ## To-Do list
-- make it actually render the current user picture, username, user type and check if the account is password protected - avatar rendering broken, usertype and password broken
+- password protected label
 - make it so it actually changes the profile picture
 - make it integrated to usercpl.dll.mun
 - fix some bugs (selection is wierd)
