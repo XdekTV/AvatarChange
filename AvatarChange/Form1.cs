@@ -1,133 +1,190 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
+using System.IO;
 using System.Linq;
-using System.IO; // Dodano dla obsługi plików
-using System.Security.Principal; // Dodano dla użycia WindowsIdentity
+using System.Runtime.InteropServices;
+using System.Security.Principal;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using Microsoft.Win32; // Dodano dla użycia Registry
-using System.DirectoryServices.AccountManagement; // Dodano dla użycia PrincipalContext
+using System.DirectoryServices.AccountManagement;
+using System.Net; // Added for NetworkCredential handling
 
 namespace AvatarChange
 {
     public partial class Form1 : Form
     {
-        private PictureBox selectedPictureBox; // Przechowuje aktualnie zaznaczony PictureBox
+        private PictureBoxWithPath selectedPictureBox; // Using a new class
+
+        // Declaration of the LogonUser method
+        [DllImport("AdvApi32.dll", SetLastError = true)]
+        extern static bool LogonUser(string username, string password, string domain, UInt32 LogonType, UInt32 LogonProvider, ref IntPtr hToken);
+
+        // Declarations for NetUserGetInfo and NetApiBufferFree
+        [DllImport("Netapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern int NetUserGetInfo([MarshalAs(UnmanagedType.LPWStr)] string serverName, [MarshalAs(UnmanagedType.LPWStr)] string userName, int level, out IntPtr bufPtr);
+
+        [DllImport("Netapi32.dll")]
+        private static extern int NetApiBufferFree(IntPtr Buffer);
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct USER_INFO_1
+        {
+            public string usri1_name;
+            public string usri1_password;
+            public uint usri1_password_age;
+            public uint usri1_priv;
+            public string usri1_home_dir;
+            public string usri1_comment;
+            public uint usri1_flags;
+            public string usri1_script_path;
+        }
+
+        private const int NERR_Success = 0;
+        private const uint UF_PASSWD_NOTREQD = 0x00000020;
+        private const uint UF_ACCOUNTDISABLE = 0x00000002;
+
+        // Constants for user privilege levels (Administrator or Standard User)
+        private const uint USER_PRIV_GUEST = 0;
+        private const uint USER_PRIV_USER = 1;
+        private const uint USER_PRIV_ADMIN = 2;
 
         public Form1()
         {
             InitializeComponent();
 
-            // Dodanie zdarzenia obsługi kliknięcia dla przycisku Cancel
             button1.Click += new EventHandler(button1_Click);
-
-            // Dodanie zdarzenia obsługi kliknięcia dla linkLabel1
             linkLabel1.Click += new EventHandler(linkLabel1_Click);
+            LoadImages(); // Loading images from folder
+            LoadCurrentAvatar(); // Loading user avatar
 
-            // Ładowanie obrazów z domyślnego folderu
-            LoadImages(); // Dodanie metody ładowania obrazów
-
-            // Załaduj aktualny awatar użytkownika
-            LoadCurrentAvatar();
-
-            // Rejestracja zdarzenia ładowania formularza
-            this.Load += new EventHandler(Form1_Load); // Dodanie zdarzenia ładowania formularza
-
-            // Rejestracja zdarzenia zamykania formularza
-            this.FormClosing += new FormClosingEventHandler(Form1_FormClosing); // Dodanie zdarzenia zamykania formularza
+            this.Load += new EventHandler(Form1_Load);
+            this.FormClosing += new FormClosingEventHandler(Form1_FormClosing);
         }
 
-        // Metoda ustawiająca nazwę użytkownika w label3 oraz typ konta w label4
         private async void Form1_Load(object sender, EventArgs e)
         {
-            // Ustaw nazwę użytkownika w label3
             label3.Text = $"{Environment.UserName}";
-
-            // Przenieś sprawdzanie grupy użytkownika i hasła do osobnych metod asynchronicznych
             await Task.Run(() => CheckUserGroup());
             await Task.Run(() => CheckUserPassword());
         }
 
+        // Updated CheckUserGroup method using NetUserGetInfo
         private void CheckUserGroup()
         {
-            WindowsIdentity identity = WindowsIdentity.GetCurrent();
-            WindowsPrincipal principal = new WindowsPrincipal(identity);
+            IntPtr bufPtr = IntPtr.Zero;
 
-            // Sprawdzenie, do jakiej grupy należy użytkownik
-            if (principal.IsInRole(WindowsBuiltInRole.Administrator))
+            try
             {
-                label4.Invoke((MethodInvoker)delegate { label4.Text = "Administrator"; });
-            }
-            else if (principal.IsInRole(WindowsBuiltInRole.User))
-            {
-                label4.Invoke((MethodInvoker)delegate { label4.Text = "Standard User"; });
-            }
-            else
-            {
-                label4.Invoke((MethodInvoker)delegate { label4.Text = "Other Group"; });
-            }
-        }
-
-        // Metoda sprawdzająca, czy konto użytkownika ma hasło
-        private void CheckUserPassword()
-        {
-            using (PrincipalContext context = new PrincipalContext(ContextType.Machine))
-            {
-                // Sprawdzenie bieżącego użytkownika
-                UserPrincipal user = UserPrincipal.FindByIdentity(context, Environment.UserName);
-                if (user != null)
+                // Retrieve information about the currently logged-in user
+                int result = NetUserGetInfo(null, Environment.UserName, 1, out bufPtr);
+                if (result == NERR_Success)
                 {
-                    // Sprawdzenie, czy konto ma hasło
-                    bool hasPassword = user.LastPasswordSet.HasValue;
+                    // Convert the buffer to USER_INFO_1 structure
+                    USER_INFO_1 userInfo = (USER_INFO_1)Marshal.PtrToStructure(bufPtr, typeof(USER_INFO_1));
 
-                    // Wywołanie na UI wątek
-                    label5.Invoke((MethodInvoker)delegate {
-                        if (hasPassword)
+                    // Check user privilege level
+                    label4.Invoke((MethodInvoker)delegate {
+                        switch (userInfo.usri1_priv)
                         {
-                            label5.Text = "Password protected"; // Ustawienie tekstu label5
-                            label5.Visible = true; // Ustawienie label5 na widoczny
-                        }
-                        else
-                        {
-                            label5.Visible = false; // Ukryj label5, jeśli nie ma hasła
+                            case USER_PRIV_ADMIN:
+                                label4.Text = "Administrator";
+                                break;
+                            case USER_PRIV_USER:
+                                label4.Text = "Standard User";
+                                break;
+                            case USER_PRIV_GUEST:
+                                label4.Text = "Guest";
+                                break;
+                            default:
+                                label4.Text = "Unknown";
+                                break;
                         }
                     });
                 }
                 else
                 {
-                    label5.Invoke((MethodInvoker)delegate { label5.Visible = false; }); // Ukryj label5, jeśli nie znaleziono użytkownika
+                    MessageBox.Show("Cannot retrieve user group information.");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"An error occurred while checking user group: {ex.Message}");
+            }
+            finally
+            {
+                // Free the buffer to avoid memory leaks
+                if (bufPtr != IntPtr.Zero)
+                {
+                    NetApiBufferFree(bufPtr);
                 }
             }
         }
 
-        // Metoda zamykająca aplikację po kliknięciu przycisku Cancel
+        // Updated CheckUserPassword method
+        private void CheckUserPassword()
+        {
+            try
+            {
+                using (var context = new PrincipalContext(ContextType.Machine)) // or ContextType.Domain if you are in a domain
+                {
+                    var user = UserPrincipal.FindByIdentity(context, Environment.UserName);
+                    if (user != null)
+                    {
+                        label5.Invoke((MethodInvoker)delegate {
+                            // Check if password is required
+                            bool passwordNotRequired = user.PasswordNotRequired;
+                            bool passwordNeverExpires = user.PasswordNeverExpires;
+
+                            // If password is not required, hide label5
+                            if (passwordNotRequired)
+                            {
+                                label5.Visible = false;
+                            }
+                            else if (passwordNeverExpires || user.LastPasswordSet != null)
+                            {
+                                // If password is set (LastPasswordSet is not null), show label5
+                                label5.Text = "Password protected";
+                                label5.Visible = true;
+                            }
+                            else
+                            {
+                                // If password is not set
+                                label5.Visible = false;
+                            }
+                        });
+                    }
+                    else
+                    {
+                        MessageBox.Show("Cannot find the user.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"An error occurred while checking user password: {ex.Message}");
+            }
+        }
+
         private void button1_Click(object sender, EventArgs e)
         {
-            Application.Exit(); // Zamknięcie aplikacji
+            Application.Exit();
         }
 
-        // Obsługa zamknięcia aplikacji po kliknięciu "X"
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
-            Application.Exit(); // Zamknięcie aplikacji
+            Application.Exit();
         }
 
-        // Metoda otwierająca okno dialogowe do wyboru obrazów po kliknięciu linkLabel1
         private void linkLabel1_Click(object sender, EventArgs e)
         {
-            // Utwórz obiekt OpenFileDialog
             OpenFileDialog openFileDialog = new OpenFileDialog
             {
                 Filter = "Image Files|*.bmp;*.jpg;*.jpeg;*.png",
                 Title = "Select Picture",
-                Multiselect = false // Umożliwienie wyboru jednego obrazu
+                Multiselect = false
             };
 
-            // Wyświetl okno dialogowe i sprawdź, czy użytkownik wybrał plik
             if (openFileDialog.ShowDialog() == DialogResult.OK)
             {
                 foreach (var file in openFileDialog.FileNames)
@@ -137,76 +194,62 @@ namespace AvatarChange
             }
         }
 
-        // Metoda ładująca aktualny awatar użytkownika z rejestru
         private void LoadCurrentAvatar()
         {
             try
             {
-                // Otwórz klucz rejestru
-                using (RegistryKey usersKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\AccountPicture\Users"))
+                string userSid = WindowsIdentity.GetCurrent().User.ToString();
+                string avatarDirectory = Path.Combine(@"C:\Users\Public\AccountPictures", userSid);
+
+                if (Directory.Exists(avatarDirectory))
                 {
-                    if (usersKey != null)
+                    string[] extensions = new[] { ".jpg", ".png", ".bmp" };
+                    string avatarPath = null;
+                    var files = Directory.GetFiles(avatarDirectory);
+
+                    foreach (var file in files)
                     {
-                        // Pobierz SID użytkownika
-                        string userSid = WindowsIdentity.GetCurrent().Owner.ToString();
-                        Console.WriteLine("User SID: " + userSid); // Debugowanie SID
-
-                        // Sprawdź, czy istnieje wpis dla aktualnego SID
-                        using (RegistryKey userKey = usersKey.OpenSubKey(userSid))
+                        if (file.EndsWith("-Image192.jpg", StringComparison.OrdinalIgnoreCase) ||
+                            file.EndsWith("-Image192.png", StringComparison.OrdinalIgnoreCase) ||
+                            file.EndsWith("-Image192.bmp", StringComparison.OrdinalIgnoreCase))
                         {
-                            if (userKey != null)
-                            {
-                                string userPicturePath = userKey.GetValue("Image192")?.ToString();
-                                Console.WriteLine("User Picture Path: " + userPicturePath); // Debugowanie ścieżki do obrazu
-
-                                // Sprawdź, czy plik istnieje
-                                if (!string.IsNullOrEmpty(userPicturePath) && File.Exists(userPicturePath))
-                                {
-                                    pictureBox1.Image = Image.FromFile(userPicturePath);
-                                    // Ustaw rozmiar pictureBox1 na 56x56
-                                    pictureBox1.Width = 56;
-                                    pictureBox1.Height = 56;
-                                    pictureBox1.SizeMode = PictureBoxSizeMode.Zoom; // Upewnij się, że obrazek zachowuje proporcje
-                                }
-                                else
-                                {
-                                    // Ustaw pusty obrazek lub wyświetl komunikat, jeśli nie znaleziono pliku
-                                    pictureBox1.Image = null; // Ustawia obrazek na pusty
-                                    MessageBox.Show("Nie znaleziono awatara użytkownika. Ścieżka: " + userPicturePath);
-                                }
-                            }
-                            else
-                            {
-                                // Dodano komunikat debugujący, który wyświetla dostępne SID w rejestrze
-                                string[] subKeyNames = usersKey.GetSubKeyNames();
-                                MessageBox.Show("Nie znaleziono wpisu rejestru dla SID: " + userSid +
-                                                "\nDostępne SID w rejestrze: " + string.Join(", ", subKeyNames));
-                            }
+                            avatarPath = file;
+                            break;
                         }
+                    }
+
+                    if (!string.IsNullOrEmpty(avatarPath))
+                    {
+                        pictureBox1.Image = Image.FromFile(avatarPath);
+                        pictureBox1.Width = 56;
+                        pictureBox1.Height = 56;
+                        pictureBox1.SizeMode = PictureBoxSizeMode.Zoom;
                     }
                     else
                     {
-                        MessageBox.Show("Nie znaleziono klucza rejestru dla obrazów konta użytkownika.");
+                        MessageBox.Show("User avatar not found.");
+                        pictureBox1.Image = null;
                     }
+                }
+                else
+                {
+                    MessageBox.Show("Avatar directory not found: " + avatarDirectory);
+                    pictureBox1.Image = null;
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Wystąpił błąd podczas ładowania awatara: " + ex.Message);
-                pictureBox1.Image = null; // Ustawia obrazek na pusty
+                MessageBox.Show("An error occurred while loading avatar: " + ex.Message);
+                pictureBox1.Image = null;
             }
         }
 
-        // Metoda ładująca obrazy z domyślnego folderu
         private void LoadImages()
         {
-            // Ścieżka do folderu z obrazami
             string folderPath = @"C:\ProgramData\Microsoft\User Account Pictures";
 
-            // Sprawdź, czy folder istnieje
             if (Directory.Exists(folderPath))
             {
-                // Pobierz pliki graficzne BMP, PNG, JPG z folderu
                 string[] imageFiles = Directory.GetFiles(folderPath, "*.*")
                     .Where(file => file.ToLower().EndsWith(".bmp") ||
                                    file.ToLower().EndsWith(".png") ||
@@ -214,69 +257,85 @@ namespace AvatarChange
                                    file.ToLower().EndsWith(".jpeg"))
                     .ToArray();
 
-                // Dodaj obrazy do flowLayoutPanel1
-                foreach (string imageFile in imageFiles)
+                foreach (var filePath in imageFiles)
                 {
-                    AddImageToPanel(imageFile);
+                    AddImageToPanel(filePath);
                 }
             }
             else
             {
-                MessageBox.Show("Folder nie istnieje!");
+                MessageBox.Show("Image folder does not exist: " + folderPath);
             }
         }
 
-        // Metoda dodająca obraz do flowLayoutPanel1
         private void AddImageToPanel(string filePath)
         {
-            // Utwórz nowy PictureBox
-            PictureBox pictureBox = new PictureBox
+            PictureBoxWithPath pictureBox = new PictureBoxWithPath
             {
-                Width = 48, // Ustaw rozmiar na 48x48
+                Width = 48,
                 Height = 48,
                 Image = Image.FromFile(filePath),
                 SizeMode = PictureBoxSizeMode.Zoom,
-                Margin = new Padding(5),
-                BorderStyle = BorderStyle.FixedSingle // Opcjonalnie: Dodanie ramki do obrazków
+                Margin = new Padding(0),
+                BackColor = Color.Transparent,
+                ImagePath = filePath // Setting the image path
             };
 
-            // Dodanie obsługi zdarzenia kliknięcia
             pictureBox.Click += PictureBox_Click;
-            pictureBox.Paint += PictureBox_Paint; // Dodajemy obsługę zdarzenia Paint
 
-            // Dodaj PictureBox do flowLayoutPanel1
-            flowLayoutPanel1.Controls.Add(pictureBox);
+            Panel panel = new Panel
+            {
+                Width = 56,
+                Height = 56,
+                BackColor = Color.Transparent,
+                BorderStyle = BorderStyle.None
+            };
+
+            panel.Controls.Add(pictureBox);
+            flowLayoutPanel1.Controls.Add(panel);
         }
 
-        // Metoda obsługująca kliknięcia na PictureBox
         private void PictureBox_Click(object sender, EventArgs e)
         {
-            // Przywróć oryginalne tło dla poprzednio zaznaczonego PictureBox
-            if (selectedPictureBox != null)
+            PictureBoxWithPath clickedPictureBox = (PictureBoxWithPath)sender;
+
+            if (selectedPictureBox != null && selectedPictureBox != clickedPictureBox)
             {
-                selectedPictureBox.Invalidate(); // Wymuś ponowne narysowanie
+                RemoveBorder(selectedPictureBox);
             }
 
-            // Zaznacz nowy PictureBox
-            selectedPictureBox = sender as PictureBox; // Przypisz wybrany PictureBox do zmiennej
-            selectedPictureBox.Invalidate(); // Wymuś ponowne narysowanie
-
-            // Teraz można dodać dodatkowe operacje na zaznaczonym PictureBox, jeśli jest to wymagane
+            selectedPictureBox = clickedPictureBox;
+            DrawBorder(selectedPictureBox, Color.LightBlue);
+            selectedPictureBox.Invalidate();
         }
 
-        // Metoda rysująca zaznaczenie w PictureBox
-        private void PictureBox_Paint(object sender, PaintEventArgs e)
+        private void DrawBorder(PictureBoxWithPath pictureBox, Color color)
         {
-            var pictureBox = sender as PictureBox;
-
-            // Rysowanie prostokąta zaznaczenia, jeśli ten PictureBox jest zaznaczony
-            if (pictureBox == selectedPictureBox)
+            Bitmap bitmap = new Bitmap(pictureBox.Width, pictureBox.Height);
+            using (Graphics g = Graphics.FromImage(bitmap))
             {
-                using (var pen = new Pen(Color.Blue, 2)) // Ustawienie koloru i grubości ramki
+                g.DrawImage(pictureBox.Image, 0, 0, pictureBox.Width, pictureBox.Height);
+                using (Pen pen = new Pen(color, 2))
                 {
-                    e.Graphics.DrawRectangle(pen, 0, 0, pictureBox.Width - 2, pictureBox.Height - 2);
+                    g.DrawRectangle(pen, 1, 1, pictureBox.Width - 2, pictureBox.Height - 2);
                 }
             }
+            pictureBox.Image = bitmap;
         }
+
+        private void RemoveBorder(PictureBoxWithPath pictureBox)
+        {
+            // Restore the original image
+            if (File.Exists(pictureBox.ImagePath))
+            {
+                pictureBox.Image = Image.FromFile(pictureBox.ImagePath);
+                pictureBox.Invalidate();
+            }
+        }
+    }
+
+    public class PictureBoxWithPath : PictureBox
+    {
+        public string ImagePath { get; set; } // Property to store the image path
     }
 }

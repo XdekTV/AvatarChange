@@ -101,8 +101,7 @@
             // 
             // pictureBox1
             // 
-            this.pictureBox1.Image = global::AvatarChange.Properties.Resources.firefox_oDm18b1hSo;
-            this.pictureBox1.Location = new System.Drawing.Point(103, 57);
+            this.pictureBox1.Location = new System.Drawing.Point(106, 59);
             this.pictureBox1.Name = "pictureBox1";
             this.pictureBox1.Size = new System.Drawing.Size(213, 73);
             this.pictureBox1.TabIndex = 6;
@@ -131,7 +130,7 @@
             // 
             this.label3.AutoSize = true;
             this.label3.Font = new System.Drawing.Font("Segoe UI", 11F);
-            this.label3.Location = new System.Drawing.Point(349, 57);
+            this.label3.Location = new System.Drawing.Point(168, 60);
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(50, 20);
             this.label3.TabIndex = 8;
@@ -141,7 +140,7 @@
             // 
             this.label4.AutoSize = true;
             this.label4.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.label4.Location = new System.Drawing.Point(350, 81);
+            this.label4.Location = new System.Drawing.Point(169, 80);
             this.label4.Name = "label4";
             this.label4.Size = new System.Drawing.Size(38, 15);
             this.label4.TabIndex = 9;
@@ -151,7 +150,7 @@
             // 
             this.label5.AutoSize = true;
             this.label5.Font = new System.Drawing.Font("Segoe UI", 9F);
-            this.label5.Location = new System.Drawing.Point(350, 100);
+            this.label5.Location = new System.Drawing.Point(169, 96);
             this.label5.Name = "label5";
             this.label5.Size = new System.Drawing.Size(38, 15);
             this.label5.TabIndex = 10;
